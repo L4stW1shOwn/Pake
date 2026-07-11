@@ -1,0 +1,430 @@
+name: Build App With Pake CLI (Full Options)
+
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "10.26.2"
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "Website URL"
+        required: true
+      name:
+        description: "App name (lowercase for Linux)"
+        required: true
+      icon:
+        description: "Icon URL, auto-fetch if empty"
+        required: false
+      width:
+        description: "Window width (px)"
+        required: false
+        default: "1200"
+      height:
+        description: "Window height (px)"
+        required: false
+        default: "780"
+      min_width:
+        description: "Minimum window width (px)"
+        required: false
+      min_height:
+        description: "Minimum window height (px)"
+        required: false
+      zoom:
+        description: "Initial page zoom level (50-200)"
+        required: false
+        default: "100"
+      app_version:
+        description: "App version"
+        required: false
+        default: "1.0.0"
+      installer_language:
+        description: "Windows Installer language"
+        required: false
+        default: "en-US"
+      activation_shortcut:
+        description: "Activation shortcut (e.g. CmdOrControl+Shift+P)"
+        required: false
+      user_agent:
+        description: "Custom browser user agent"
+        required: false
+      system_tray_icon:
+        description: "System tray icon path"
+        required: false
+      title:
+        description: "Window title bar text"
+        required: false
+      internal_url_regex:
+        description: "Regex pattern for internal URLs"
+        required: false
+      safe_domain:
+        description: "Trusted domains to keep inside the app"
+        required: false
+      targets:
+        description: "Package formats or architectures"
+        required: false
+      inject:
+        description: "CSS/JS files to inject (comma-separated or multiple)"
+        required: false
+      proxy_url:
+        description: "Proxy server for network requests"
+        required: false
+      hide_on_close:
+        description: "Hide window instead of closing on close button click"
+        required: false
+        default: "default"
+        type: choice
+        options:
+          - "default"
+          - "true"
+          - "false"
+      fullscreen:
+        description: "Start in fullscreen mode"
+        required: false
+        type: boolean
+        default: false
+      hide_title_bar:
+        description: "Hide title bar (macOS only)"
+        required: false
+        type: boolean
+        default: false
+      always_on_top:
+        description: "Keep window always on top"
+        required: false
+        type: boolean
+        default: false
+      dark_mode:
+        description: "Force dark mode"
+        required: false
+        type: boolean
+        default: false
+      disabled_web_shortcuts:
+        description: "Disable web shortcuts in the Pake container"
+        required: false
+        type: boolean
+        default: false
+      enable_find:
+        description: "Enable in-page Find UI"
+        required: false
+        type: boolean
+        default: false
+      force_internal_navigation:
+        description: "Keep all clicked links inside the Pake window"
+        required: false
+        type: boolean
+        default: false
+      multi_arch:
+        description: "Universal binary (macOS only)"
+        required: false
+        type: boolean
+        default: false
+      no_bundle:
+        description: "Skip packaging and output only the compiled executable (Linux only)"
+        required: false
+        type: boolean
+        default: false
+      show_system_tray:
+        description: "Display the application in system tray"
+        required: false
+        type: boolean
+        default: false
+      start_to_tray:
+        description: "Start minimized to system tray"
+        required: false
+        type: boolean
+        default: false
+      incognito:
+        description: "Launch in incognito/private browsing mode"
+        required: false
+        type: boolean
+        default: false
+      wasm:
+        description: "Enable WebAssembly support with cross-origin isolation"
+        required: false
+        type: boolean
+        default: false
+      enable_drag_drop:
+        description: "Enable native drag and drop functionality"
+        required: false
+        type: boolean
+        default: false
+      keep_binary:
+        description: "Keep the raw binary file alongside the installer"
+        required: false
+        type: boolean
+        default: false
+      iterative_build:
+        description: "Rapid build mode (app only, no dmg/deb/msi)"
+        required: false
+        type: boolean
+        default: false
+      install:
+        description: "Install the built macOS app directly into /Applications"
+        required: false
+        type: boolean
+        default: false
+      camera:
+        description: "Request camera access on macOS"
+        required: false
+        type: boolean
+        default: false
+      microphone:
+        description: "Request microphone access on macOS"
+        required: false
+        type: boolean
+        default: false
+      multi_instance:
+        description: "Allow running more than one instance at the same time"
+        required: false
+        type: boolean
+        default: false
+      multi_window:
+        description: "Allow opening multiple windows within a single app instance"
+        required: false
+        type: boolean
+        default: false
+      ignore_certificate_errors:
+        description: "Ignore TLS certificate validation errors"
+        required: false
+        type: boolean
+        default: false
+      new_window:
+        description: "Allow sites to open new windows"
+        required: false
+        type: boolean
+        default: false
+      use_local_file:
+        description: "Enable recursive copying for local file paths"
+        required: false
+        type: boolean
+        default: false
+      debug:
+        description: "Enable developer tools and detailed logging"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: ${{ matrix.build }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        build: [linux, macos, windows]
+        include:
+          - build: linux
+            os: ubuntu-latest
+            rust: stable
+          - build: macos
+            os: macos-latest
+            rust: stable
+          - build: windows
+            os: windows-latest
+            rust: stable-x86_64-msvc
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Setup Node.js Environment
+        uses: ./.github/actions/setup-env
+        with:
+          mode: build
+
+      - name: Build CLI
+        run: pnpm run cli:build
+
+      - name: Setup mold linker
+        if: runner.os == 'Linux'
+        uses: rui314/setup-mold@v1
+
+      - name: Rust cache restore
+        uses: actions/cache/restore@v4.2.0
+        id: cache_store
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-pake-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build App
+        timeout-minutes: 25
+        shell: bash
+        env:
+          INPUT_URL: ${{ inputs.url }}
+          INPUT_NAME: ${{ inputs.name }}
+          INPUT_ICON: ${{ inputs.icon }}
+          INPUT_WIDTH: ${{ inputs.width }}
+          INPUT_HEIGHT: ${{ inputs.height }}
+          INPUT_MIN_WIDTH: ${{ inputs.min_width }}
+          INPUT_MIN_HEIGHT: ${{ inputs.min_height }}
+          INPUT_ZOOM: ${{ inputs.zoom }}
+          INPUT_APP_VERSION: ${{ inputs.app_version }}
+          INPUT_INSTALLER_LANGUAGE: ${{ inputs.installer_language }}
+          INPUT_ACTIVATION_SHORTCUT: ${{ inputs.activation_shortcut }}
+          INPUT_USER_AGENT: ${{ inputs.user_agent }}
+          INPUT_SYSTEM_TRAY_ICON: ${{ inputs.system_tray_icon }}
+          INPUT_TITLE: ${{ inputs.title }}
+          INPUT_INTERNAL_URL_REGEX: ${{ inputs.internal_url_regex }}
+          INPUT_SAFE_DOMAIN: ${{ inputs.safe_domain }}
+          INPUT_TARGETS: ${{ inputs.targets }}
+          INPUT_INJECT: ${{ inputs.inject }}
+          INPUT_PROXY_URL: ${{ inputs.proxy_url }}
+          INPUT_HIDE_ON_CLOSE: ${{ inputs.hide_on_close }}
+          INPUT_FULLSCREEN: ${{ inputs.fullscreen }}
+          INPUT_HIDE_TITLE_BAR: ${{ inputs.hide_title_bar }}
+          INPUT_ALWAYS_ON_TOP: ${{ inputs.always_on_top }}
+          INPUT_DARK_MODE: ${{ inputs.dark_mode }}
+          INPUT_DISABLED_WEB_SHORTCUTS: ${{ inputs.disabled_web_shortcuts }}
+          INPUT_ENABLE_FIND: ${{ inputs.enable_find }}
+          INPUT_FORCE_INTERNAL_NAVIGATION: ${{ inputs.force_internal_navigation }}
+          INPUT_MULTI_ARCH: ${{ inputs.multi_arch }}
+          INPUT_NO_BUNDLE: ${{ inputs.no_bundle }}
+          INPUT_SHOW_SYSTEM_TRAY: ${{ inputs.show_system_tray }}
+          INPUT_START_TO_TRAY: ${{ inputs.start_to_tray }}
+          INPUT_INCOGNITO: ${{ inputs.incognito }}
+          INPUT_WASM: ${{ inputs.wasm }}
+          INPUT_ENABLE_DRAG_DROP: ${{ inputs.enable_drag_drop }}
+          INPUT_KEEP_BINARY: ${{ inputs.keep_binary }}
+          INPUT_ITERATIVE_BUILD: ${{ inputs.iterative_build }}
+          INPUT_INSTALL: ${{ inputs.install }}
+          INPUT_CAMERA: ${{ inputs.camera }}
+          INPUT_MICROPHONE: ${{ inputs.microphone }}
+          INPUT_MULTI_INSTANCE: ${{ inputs.multi_instance }}
+          INPUT_MULTI_WINDOW: ${{ inputs.multi_window }}
+          INPUT_IGNORE_CERTIFICATE_ERRORS: ${{ inputs.ignore_certificate_errors }}
+          INPUT_NEW_WINDOW: ${{ inputs.new_window }}
+          INPUT_USE_LOCAL_FILE: ${{ inputs.use_local_file }}
+          INPUT_DEBUG: ${{ inputs.debug }}
+        run: |
+          node <<'NODE_SCRIPT'
+          const { spawnSync } = require('child_process');
+
+          const args = [process.env.INPUT_URL, '--name', process.env.INPUT_NAME];
+
+          function addStringArg(flag, envName) {
+            const value = process.env[envName];
+            if (value && value.trim() !== '') {
+              args.push(flag, value.trim());
+            }
+          }
+
+          function addBooleanArg(flag, envName) {
+            if (process.env[envName] === 'true') {
+              args.push(flag);
+            }
+          }
+
+          addStringArg('--icon', 'INPUT_ICON');
+          addStringArg('--width', 'INPUT_WIDTH');
+          addStringArg('--height', 'INPUT_HEIGHT');
+          addStringArg('--min-width', 'INPUT_MIN_WIDTH');
+          addStringArg('--min-height', 'INPUT_MIN_HEIGHT');
+          addStringArg('--zoom', 'INPUT_ZOOM');
+          addStringArg('--activation-shortcut', 'INPUT_ACTIVATION_SHORTCUT');
+          addStringArg('--app-version', 'INPUT_APP_VERSION');
+          addStringArg('--user-agent', 'INPUT_USER_AGENT');
+          addStringArg('--system-tray-icon', 'INPUT_SYSTEM_TRAY_ICON');
+          addStringArg('--title', 'INPUT_TITLE');
+          addStringArg('--internal-url-regex', 'INPUT_INTERNAL_URL_REGEX');
+          addStringArg('--safe-domain', 'INPUT_SAFE_DOMAIN');
+          addStringArg('--targets', 'INPUT_TARGETS');
+          addStringArg('--installer-language', 'INPUT_INSTALLER_LANGUAGE');
+          addStringArg('--inject', 'INPUT_INJECT');
+          addStringArg('--proxy-url', 'INPUT_PROXY_URL');
+
+          const hideOnClose = process.env.INPUT_HIDE_ON_CLOSE;
+          if (hideOnClose === 'true') {
+            args.push('--hide-on-close');
+          } else if (hideOnClose === 'false') {
+            args.push('--hide-on-close', 'false');
+          }
+
+          addBooleanArg('--fullscreen', 'INPUT_FULLSCREEN');
+          addBooleanArg('--hide-title-bar', 'INPUT_HIDE_TITLE_BAR');
+          addBooleanArg('--always-on-top', 'INPUT_ALWAYS_ON_TOP');
+          addBooleanArg('--dark-mode', 'INPUT_DARK_MODE');
+          addBooleanArg('--disabled-web-shortcuts', 'INPUT_DISABLED_WEB_SHORTCUTS');
+          addBooleanArg('--enable-find', 'INPUT_ENABLE_FIND');
+          addBooleanArg('--force-internal-navigation', 'INPUT_FORCE_INTERNAL_NAVIGATION');
+          addBooleanArg('--multi-arch', 'INPUT_MULTI_ARCH');
+          addBooleanArg('--no-bundle', 'INPUT_NO_BUNDLE');
+          addBooleanArg('--show-system-tray', 'INPUT_SHOW_SYSTEM_TRAY');
+          addBooleanArg('--start-to-tray', 'INPUT_START_TO_TRAY');
+          addBooleanArg('--incognito', 'INPUT_INCOGNITO');
+          addBooleanArg('--wasm', 'INPUT_WASM');
+          addBooleanArg('--enable-drag-drop', 'INPUT_ENABLE_DRAG_DROP');
+          addBooleanArg('--keep-binary', 'INPUT_KEEP_BINARY');
+          addBooleanArg('--iterative-build', 'INPUT_ITERATIVE_BUILD');
+          addBooleanArg('--install', 'INPUT_INSTALL');
+          addBooleanArg('--camera', 'INPUT_CAMERA');
+          addBooleanArg('--microphone', 'INPUT_MICROPHONE');
+          addBooleanArg('--multi-instance', 'INPUT_MULTI_INSTANCE');
+          addBooleanArg('--multi-window', 'INPUT_MULTI_WINDOW');
+          addBooleanArg('--ignore-certificate-errors', 'INPUT_IGNORE_CERTIFICATE_ERRORS');
+          addBooleanArg('--new-window', 'INPUT_NEW_WINDOW');
+          addBooleanArg('--use-local-file', 'INPUT_USE_LOCAL_FILE');
+          addBooleanArg('--debug', 'INPUT_DEBUG');
+
+          console.log('Running: node dist/cli.js', args.map(a => a.includes(' ') ? `"${a}"` : a).join(' '));
+          const result = spawnSync('node', ['dist/cli.js', ...args], { stdio: 'inherit' });
+          process.exit(result.status ?? 1);
+          NODE_SCRIPT
+
+      - name: Upload Linux artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.name }}-${{ matrix.build }}
+          path: |
+            *.deb
+            *.AppImage
+            *.rpm
+            *.pkg.tar.zst
+            *-binary
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload macOS artifacts
+        if: matrix.os == 'macos-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.name }}-${{ matrix.build }}
+          path: |
+            *.dmg
+            *.app
+            *-binary
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Upload Windows artifacts
+        if: matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.name }}-${{ matrix.build }}
+          path: |
+            *.msi
+            *.exe
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Rust cache store
+        uses: actions/cache/save@v4.2.0
+        if: steps.cache_store.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-pake-${{ hashFiles('**/Cargo.lock') }}
